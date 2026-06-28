@@ -1,0 +1,257 @@
+{
+  "name": "Learn workflow automation",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1896819c-5201-4aa6-bf1f-63e5d36ee073",
+              "name": "message",
+              "value": "Hi,  I'm Sarah Johnson from Bright Dental.  My email is sarahmohummad@gmail.com and my phone number is +971501234567.  We need help automating our appointment reminder system and integrating it with our CRM.  This is urgent and should be handled as soon as possible.  Our budget is 2000 USD.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -848,
+        336
+      ],
+      "id": "76536d4f-3613-49dd-8da2-db68d27c6b62",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.message }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "=You are an information extraction engine.\n\nExtract information from the message and return ONLY valid raw JSON.\n\nRequired fields:\n\n* company_name\n* contact_name\n* email\n* service_needed\n\nAdditional fields:\n\n* urgency_level\n\nOptional fields:\n\n* phone\n* budget_mentioned\n\nRules:\n\n1. Return ONLY raw JSON. No markdown, explanations, comments, or code fences.\n\n2. Use exactly these keys:\n   * company_name\n   * contact_name\n   * email\n   * service_needed\n   * urgency_level\n   * phone\n   * budget_mentioned\n   * missing_required_fields\n\n3. Never invent or assume information that is not explicitly stated.\n\n4. If an optional field is not mentioned, return null.\n\n5. If a required field is missing from the message, set it to null and add its key name to missing_required_fields.\n\n6. Missing values must always be null. Never use empty strings, \"unknown\", \"N/A\", or similar placeholders.\n\n7. IMPORTANT: Email validation is NOT required.\n   The email field must be extracted even if it is invalid or malformed.\n   Your task is ONLY to check whether an email exists in the text, not whether it is correctly formatted.\n\n8. urgency_level must be one of:\n   * urgent\n   * normal\n   * low\n\n9. If urgency is clearly expressed (e.g. urgent, asap, immediately, emergency, today), set urgency_level accordingly.\n\n10. If urgency is not mentioned, set:\n   \"urgency_level\": \"normal\"\n\n11. missing_required_fields must contain only:\n   * company_name\n   * contact_name\n   * email\n   * service_needed"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -432,
+        320
+      ],
+      "id": "9a4fcec7-0231-484d-ab7f-4d6ef7b22881",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VdAzQnF68uwDGqv4",
+          "name": "Unavailable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  let message = item.json.message;\n\n  message = (message || \"\").trim() || \"Unknown\";\n\n  item.json.message =\n    message.charAt(0).toUpperCase() + message.slice(1);\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        336
+      ],
+      "id": "e9c1daef-fd99-463e-a62b-eb4087757935",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  try {\n    const text = item.json.content?.parts?.[0]?.text || \"\";\n\n    const clean = text\n      .replace(/```json/g, \"\")\n      .replace(/```/g, \"\")\n      .trim();\n\n    const result = JSON.parse(clean);\n\n    const errors = [];\n\n    if (result.missing_required_fields?.length) {\n      errors.push(\n        `${result.missing_required_fields.join(', ')} ${\n          result.missing_required_fields.length === 1 ? 'is' : 'are'\n        } missing`\n      );\n    }\n\n    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\n    if (\n      result.email !== null &&\n      !emailRegex.test(result.email)\n    ) {\n      errors.push(`Invalid email format: ${result.email}`);\n    }\n\n    if (errors.length) {\n      throw new Error(errors.join(' | '));\n    }\n\n    const output = {\n      success: true,\n      data: result\n    };\n\n    if (!result.missing_required_fields?.length) {\n      delete output.data.missing_required_fields;\n    }\n\n    item.json = output;\n\n  } catch (e) {\n    item.json = {\n      success: false,\n      error: e.message\n    };\n  }\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        336
+      ],
+      "id": "4b671e83-21fd-4add-a251-13fcd662d003",
+      "name": "missing_required_fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0b8eb71a-2e25-48c1-bbda-4189d21c209d",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        112,
+        336
+      ],
+      "id": "5757fbec-c06d-460e-a038-5fdc18ae0b62",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"company_name\": \"{{ $json.data.company_name }}\",\n  \"contact_name\": \"{{ $json.data.contact_name }}\",\n  \"email\": \"{{ $json.data.email }}\",\n  \"service_needed\": \"{{ $json.data.service_needed }}\",\n  \"urgency_level\": \"{{ $json.data.urgency_level }}\",\n  \"phone\": \"{{ $json.data.phone }}\",\n  \"budget_mentioned\": \"{{ $json.data.budget_mentioned }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        416,
+        256
+      ],
+      "id": "5fab8f4d-d8cb-47a5-958e-dcf7d442ade0",
+      "name": "Respond to Webhook5"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": {{ $json.success }},\n  \"error\": \"{{ $json.error }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        384,
+        496
+      ],
+      "id": "73bec51b-548b-4ae2-95d2-56efa954dc5b",
+      "name": "Respond to Webhook6"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        336
+      ],
+      "id": "d1ac5732-3501-4532-9894-d402e10d3d33",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "missing_required_fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "missing_required_fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "40a9a051-f475-4eb7-9515-0e1c4e82ba09",
+  "meta": {
+    "instanceId": "1a6a6d8b6d7820a0c8851748fe50daf3a11fadbbfbb8c5d9708a140ffa762e17"
+  },
+  "nodeGroups": [],
+  "id": "sI97IA9AMO0Iv3De",
+  "tags": []
+}
